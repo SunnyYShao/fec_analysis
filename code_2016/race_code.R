@@ -7,7 +7,7 @@ library(curl)
 library(httr)
 library(sf)
 
-setwd("/Users/sunnyshao/Documents/campaign contribution/")
+setwd("/Users/sunnyshao/Documents/fec_analysis/")
 
 
 #load last name dictionary
@@ -46,35 +46,30 @@ race_out_final <- race_out_final %>%
     Race == "pred.asi" ~"Most Likely Asian",
     Race == "pred.oth" ~"Most Likely Other",
     TRUE ~"")) %>% 
+  mutate(Race = case_when(
+    is.na(ethnicity) == F ~"Most Likely Asian",
+    TRUE ~Race)) %>% 
   mutate(ethnicity = case_when(
     is.na(ethnicity) == T & Race == "Most Likely Asian" ~"Other Asian",
     TRUE ~ethnicity)) %>% 
   select(-pred.whi, -pred.bla, -pred.his,
          -pred.asi, -pred.oth) %>% 
+  mutate(contribution_value_negative = case_when(
+    TRANSACTION_AMT < 0 ~"YES",
+    TRUE ~"NO")) %>% 
   janitor::clean_names()
 
-table(race_out_final$candidate_name, race_out_final$ethnicity)
+# race_out_final %>%
+#   select(candidate_name, transaction_amt) %>%
+#   group_by(candidate_name) %>%
+#   mutate(total = sum(transaction_amt)) %>%
+#   ungroup() %>%
+#   select(-transaction_amt) %>%
+#   unique() %>%
+#   mutate(sum_donation = scales::comma(total)) -> table1
 
-cand_commit_final <- read_csv("raw_2016/committee_list_2016.csv")
-cand_commit_final <- cand_commit_final %>% 
-  rename(cmte_id = V1)
 
-final <- race_out_final %>% 
-  left_join(cand_commit_final)
-
-
-# table(race_out_final$ethnicity)
-# table(race_out_final$race)
-
-final %>%
-  select(candidate_name, transaction_amt, cmte_nm) %>%
-  group_by(candidate_name, cmte_nm) %>%
-  mutate(total = sum(transaction_amt)) %>%
-  ungroup() %>%
-  select(-transaction_amt) %>%
-  unique() %>%
-  mutate(sum_donation = scales::comma(total)) -> table1
     
 
 # write_csv(race_out_final, "presi2020_contrib_wrace.csv", na = "")
-write_dta(final, "final_2016/final2016_contrib_wrace.dta")
+write_dta(race_out_final, "final_2016/final2016_contrib_wrace.dta")

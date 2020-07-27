@@ -16,7 +16,7 @@ zip2county <- zcta::zcta_county_rel_10 %>%
   select(zcta, county, geoid)
 
 #load fec record data
-data <- haven::read_dta("final_2020/final_contrib_wrace.dta")
+data <- haven::read_dta("final_2020/final_2020contrib_wrace.dta")
 data16 <- haven::read_dta("final_2016/final2016_contrib_wrace.dta")
 
 # temp <- data16 %>%
@@ -168,6 +168,25 @@ st_write(map, "map/counties.shp", driver = "ESRI Shapefile")
 st_write(map_race, "map/FECrace20.shp", driver = "ESRI Shapefile")
 
 #################
-table(data$transaction_amt < 0)
+
+table <- data %>% 
+  mutate(month = substr(transaction_dt, start = 1, stop = 2),
+         date = substr(transaction_dt, start = 3, stop = 4),
+         year = substr(transaction_dt, start = 5, stop = 8)) %>% 
+  filter(str_detect(cmte_nm, "BIDEN") | str_detect(cmte_nm, "TRUMP")) %>% 
+  filter(month == "05") %>% 
+  select(candidate_name, cmte_nm, transaction_amt) %>% 
+  group_by(candidate_name, cmte_nm) %>% 
+  mutate(transaction_amt = sum(transaction_amt)) %>% 
+  ungroup() %>% unique()
+
+
+
+ table <- data %>% 
+  select(candidate_name, cmte_nm, race) %>% 
+  filter(str_detect(candidate_name, "TRUMP")) %>% 
+  table() %>% 
+  as.data.frame() %>% write_csv("summary_trump_2020.csv", na = "")
+
 table(data16$transaction_amt < 0)
 table(data$ethnicity, data$race)

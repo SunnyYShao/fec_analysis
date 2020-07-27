@@ -6,21 +6,33 @@ library(curl)
 library(httr)
 library(sf)
 library(lubridate)
+library(rvest)
 
 #load last name dictionary
-setwd("/Users/sunnyshao/Documents/campaign contribution/")
+setwd("/Users/sunnyshao/Documents/fec_analysis/")
 
-candidates <- c("BIDEN, JOSEPH R JR", "SANDERS, BERNARD",
-                "WARREN, ELIZABETH", "BLOOMBERG, MICHAEL R.",
-                "BUTTIGIEG, PETE", "KLOBUCHAR, AMY J.",
-                "GABBARD, TULSI", "YANG, ANDREW MR.",
-                "DELANEY, JOHN K.", "STEYER, TOM",
-                "TRUMP, DONALD J.", "BENNET, MICHAEL F.",
-                "BOOKER, CORY A.", "CASTRO, JULIAN",
-                "DE BLASIO, BILL", "GILLIBRAND, KIRSTEN",
-                "HARRIS, KAMALA D.", "HICKENLOOPER, JOHN W.",
-                "INSLEE, JAY R", "O'ROURKE, ROBERT BETO",
-                "RYAN, TIMOTHY J.", "SWALWELL, ERIC MICHAEL",
+candidates <- c("BIDEN, JOSEPH R JR", 
+                "SANDERS, BERNARD",
+                "WARREN, ELIZABETH", 
+                "BLOOMBERG, MICHAEL R.",
+                "BUTTIGIEG, PETE", 
+                "KLOBUCHAR, AMY J.",
+                "GABBARD, TULSI", 
+                "YANG, ANDREW MR.",
+                "DELANEY, JOHN K.", 
+                "STEYER, TOM",
+                "TRUMP, DONALD J.", 
+                "BENNET, MICHAEL F.",
+                "BOOKER, CORY A.", 
+                "CASTRO, JULIAN",
+                "DE BLASIO, BILL", 
+                "GILLIBRAND, KIRSTEN",
+                "HARRIS, KAMALA D.", 
+                "HICKENLOOPER, JOHN W.",
+                "INSLEE, JAY R", 
+                "O'ROURKE, ROBERT BETO",
+                "RYAN, TIMOTHY J.", 
+                "SWALWELL, ERIC MICHAEL",
                 "WILLIAMSON, MARIANNE")
 cand_list %>%
   taRifx::remove.factors() %>%
@@ -28,85 +40,83 @@ cand_list %>%
   select(V2, V4, V5)
 
 
-cand_list <- read.delim(file = "raw/candidates.txt", header = FALSE, sep = "|", dec = ".")
+cand_list <- read.delim(file = "raw_2020/candidates.txt", header = FALSE, sep = "|", dec = ".")
 cand_list <- cand_list %>% 
   taRifx::remove.factors() %>% 
   filter(V2 %in% candidates) %>% 
   filter(V6 == "P") %>% 
-  select(V1, V2) %>% 
+  select(V1, V2, V10) %>% 
   rename(candidate_name = V2,
-         cand_id = V1)
+         cand_id = V1,
+         CMTE_ID2 = V10)
 
-# committee_list <- read.delim(file = "raw/cm.txt", header = FALSE, sep = "|", dec = ".")
-additional_com <- read_csv("raw/2020-committees.csv") %>% 
-  select(CMTE_ID, CAND, CMTE_NM) %>% 
-  rename(V1 = CMTE_ID,
-         cmte_nm = CMTE_NM) %>% 
-  mutate(candidate_name = case_when(
-    CAND == "Bennet" ~"BENNET, MICHAEL F.",
-    CAND == "Biden" ~"BIDEN, JOSEPH R JR",
-    CAND == "Bloomberg" ~"BLOOMBERG, MICHAEL R.",
-    CAND == "Booker" ~"BOOKER, CORY A.",
-    CAND == "Castro" ~"CASTRO, JULIAN",
-    CAND == "De Blasio" ~"DE BLASIO, BILL",
-    CAND == "Delaney" ~"DELANEY, JOHN K.",
-    CAND == "Gabbard" ~"GABBARD, TULSI",
-    CAND == "Gillibrand" ~"GILLIBRAND, KIRSTEN",
-    CAND == "Harris" ~"HARRIS, KAMALA D.",
-    CAND == "Klobuchar" ~"KLOBUCHAR, AMY J.",
-    CAND == "Sanders" ~"SANDERS, BERNARD",
-    CAND == "Steyer" ~"STEYER, TOM",
-    CAND == "Swalwell" ~"SWALWELL, ERIC MICHAEL",
-    CAND == "Trump" ~"TRUMP, DONALD J.",
-    CAND == "Warren" ~"WARREN, ELIZABETH",
-    CAND == "Williamson" ~"WILLIAMSON, MARIANNE",
-    CAND == "Yang" ~"YANG, ANDREW MR.",
-    CAND == "Ryan" ~"RYAN, TIMOTHY J.")) %>% 
-  select(V1, candidate_name, cmte_nm)
-
-committee_cand_crosswalk <- read.delim(file = "raw/ccl.txt", header = FALSE, sep = "|", dec = ".")
-
+committee_cand_crosswalk <- read.delim(file = "raw_2020/ccl.txt", header = FALSE, sep = "|", dec = ".")
 cand_commit <- committee_cand_crosswalk %>% 
   taRifx::remove.factors() %>%
-  rename(cand_id = V1) %>% 
+  rename(cand_id = V1,
+         CMTE_ID = V4) %>% 
   left_join(cand_list) %>% 
   filter(is.na(candidate_name) == F) %>% 
-  rename(V1 = V4) %>% 
-  select(V1, candidate_name) %>% 
-  mutate(cmte_nm = NA_character_)
+  select(candidate_name, CMTE_ID) %>%
+  unique() %>% 
+  mutate(CMTE_NM = NA_character_)
+
+# committee_list <- read.delim(file = "raw_2020/cm 3.txt", header = FALSE, sep = "|", dec = ".")
+# write_csv(committee_list, "raw_2020/additional_committee.csv", na = "")
+
+additional_com <- read_csv("raw_2020/additional_committee.csv")
+additional_com <- additional_com %>% 
+  filter(CMTE_TP != "S" & CMTE_TP != "H") %>%
+  filter(CMTE_DSGN %in% c("P", "J")) %>% 
+  filter(KEEP == "YES") %>% 
+  select(candidate_name, CMTE_ID, CMTE_NM)
+
+
 
 cand_commit_final <- rbind(cand_commit, additional_com)
 
 cand_commit_final <- cand_commit_final %>% 
-  group_by(V1, candidate_name) %>% 
-  arrange(cmte_nm) %>% 
+  group_by(CMTE_ID, candidate_name) %>% 
+  arrange(CMTE_NM) %>% 
   mutate(row = row_number()) %>% 
   ungroup() %>% 
   filter(row == 1) %>% 
-  mutate(cmte_nm = case_when(
-    is.na(cmte_nm) == T ~paste("Presidential Campaign - ", candidate_name, sep = ""),
-    TRUE ~cmte_nm)) %>% 
+  mutate(CMTE_NM = case_when(
+    is.na(CMTE_NM) == T ~paste("Presidential Campaign - ", candidate_name, sep = ""),
+    TRUE ~CMTE_NM)) %>% 
   select(-row)
 
-write_csv(cand_commit_final, "committee_list.csv", na = "")
-# raw <- read.delim(file = "raw/ind_campaign.txt", header = FALSE, sep = "|", dec = ".")
-# write_csv(raw, "rawdata.csv", na = "")
-raw <- read_csv("rawdata.csv")
+list_committee <- as.vector(cand_commit_final$CMTE_ID)
+
+# write_csv(cand_commit_final, "raw_2020/committee_list.csv", na = "")
+
+
+raw <- read.delim(file = "raw_2020/ind_campaign.txt", header = FALSE, sep = "|", quote = "",
+    fill = TRUE, comment.char = "")
+
+# raw <- read.table(file = "raw_2020/ind_campaign.txt", header = FALSE, sep = "|", quote = "\"", comment.char = "", fill = TRUE)
+# n <- count.fields(file = "raw_2020/ind_campaign.txt", sep = "|", quote = "\"", comment.char = "")
+# table(n)
+# x <- readLines("raw_2020/ind_campaign.txt")
+# head(x[n == 21])
+
+write_csv(raw, "raw_2020/rawdata.csv", na = "")
+# raw <- read_csv("raw_2020/rawdata.csv")
+
 
 merged_dta <- raw %>% 
   taRifx::remove.factors() %>% 
+  rename(CMTE_ID = V1) %>% 
+  filter(CMTE_ID == "C00580100")
   left_join(cand_commit_final) %>% 
   filter(is.na(candidate_name) == F)
 
-#test the candidate merge results
-# merged_dta %>% 
-#   select(candidate_name) %>% 
-#   unique()
+table <- raw %>% 
+  filter(V1 == "C00746651")
 rm(raw)
 
 merged_dta <- merged_dta %>% 
-  rename(CMTE_ID = V1,
-         AMNDT_IND = V2,
+  rename(AMNDT_IND = V2,
          RPT_TP = V3,
          TRANSACTION_PGI = V4,
          IMAGE_NUM = V5,
@@ -130,8 +140,67 @@ merged_dta <- merged_dta %>%
 
 final <- merged_dta %>% 
   mutate(zipcode_recode = case_when(
-    is.na(ZIP_CODE) == F ~stringr::str_pad(ZIP_CODE, 9, pad = "0"),
-    TRUE ~NA_character_))
+    ZIP_CODE <= 10000 ~stringr::str_pad(ZIP_CODE, 5, pad = "0"),
+    ZIP_CODE > 99999 & ZIP_CODE <= 100000000 ~stringr::str_pad(ZIP_CODE, 9, pad = "0"),
+    TRUE ~as.character(ZIP_CODE)))
 
-write_rds(final, "presi2020_contrib.rds")
+write_rds(final, "final_2020/presi2020_contrib.rds")
+# rm(list=setdiff(ls(), "final"))
+
+
+
+
+library(xml2)
+library(rvest)
+webpage_url <- "https://docquery.fec.gov/cgi-bin/dcdev/forms/C00580100/1414193/sa/ALL/1"
+webpage <- xml2::read_html(webpage_url)
+
+
+
+
+
+
+data <- "https://docquery.fec.gov/cgi-bin/dcdev/forms/C00580100/1414193/sa/ALL/1" %>%
+  xml2::read_html() %>% 
+  # html() %>%
+  html_nodes(xpath='//*[(@id = "sadetails")]') %>%
+  html_table()
+
+data <- data[[1]]
+
+
+url_origin <- "https://docquery.fec.gov/cgi-bin/dcdev/forms/C00580100/1414193/sa/17A"
+i <- 1
+data_previous <- data %>% filter(`Contributor's Name` == "AA")
+rm(data)
+
+for(i in 1:5) {
+  print(i)
+  if(i <= 5){
+    
+    url <- paste(url_origin, i, sep = "/")
+    
+    data <- url %>%
+    xml2::read_html() %>% 
+    html_nodes(xpath='//*[(@id = "sadetails")]') %>%
+    html_table()
+    
+  data <- data[[1]]
   
+  data <- rbind(data, data_previous)
+  
+  data_previous <- data
+  }else{
+    data_final <- data_previous
+    return(data_final)
+  }
+  i <- i + 1
+  
+}
+
+
+
+
+
+
+
