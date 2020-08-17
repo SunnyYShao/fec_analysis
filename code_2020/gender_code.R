@@ -5,9 +5,10 @@ library(wru)
 # library(curl)
 # library(httr)
 # library(sf)
+library(here)
 
 data <- read_csv("presi2020_contrib_wrace.csv")
-
+  
 data <- data %>% 
   separate(firstname, into = c("FIRST", "MIDDLE"), sep = " ")
 #Gender coding
